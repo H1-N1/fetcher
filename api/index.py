@@ -6,6 +6,8 @@ from Crypto.Util.Padding import unpad
 import requests
 import os
 import random
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = Flask(__name__)
 
@@ -51,7 +53,7 @@ def provision_account():
         url = f"https://{ziv_endpoint}:3000/grantAccess"
 
         try:
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            response = requests.post(url, headers=headers, json=payload, timeout=10, verify=False)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             return jsonify({"error": f"Failed to connect to server: {str(e)}"}), 502
