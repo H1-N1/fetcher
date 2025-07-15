@@ -24,36 +24,60 @@ def aes_decryption(cipher_hex):
     plaintext_bytes = unpad(cipher.decrypt(cipher_bytes), AES.block_size)
     return plaintext_bytes.decode('utf-8')
 
+
 @app.route('/api/provision', methods=['POST'])
 def provision_account():
-    data = request.get_json()
-    ziv_endpoint = data.get('zivEndPoint')
-    username = data.get('userName', None)
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Missing JSON body"}), 400
 
-    headers = {
-        "Authorization": "Bearer zi_zi_zi",
-        "Content-Type": "application/json; charset=utf-8",
-        "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 11; Pixel 4 Build/RQ3A.210805.001.A1)"
-    }
+        ziv_endpoint = data.get('zivEndPoint')
+        if not ziv_endpoint:
+            return jsonify({"error": "Missing required parameter: zivEndPoint"}), 400
 
-    payload = {}
-    if username:
-        payload['username'] = username
+        username = data.get('userName', None)
 
-    url = f"https://{ziv_endpoint}:3000/grantAccess"
-    response = requests.post(url, headers=headers, json=payload)
-    server_response = response.json()
+        headers = {
+            "Authorization": "Bearer zi_zi_zi",
+            "Content-Type": "application/json; charset=utf-8",
+            "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 11; Pixel 4 Build/RQ3A.210805.001.A1)"
+        }
 
-    user_name = server_response['username']
-    decrypted_password = aes_decryption(server_response['password'])
-    expiration_date = server_response['expirationDate']
+        payload = {}
+        if username:
+            payload['username'] = username
 
-    return jsonify({
-        "username": user_name,
-        "password": decrypted_password,
-        "expirationDate": expiration_date
-    })
+        url = f"https://{ziv_endpoint}:3000/grantAccess"
 
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            return jsonify({"error": f"Failed to connect to server: {str(e)}"}), 502
+
+        try:
+            server_response = response.json()
+        except ValueError:
+            return jsonify({"error": "Invalid JSON response from server"}), 502
+
+        required_keys = ['username', 'password', 'expirationDate']
+        if not all(k in server_response for k in required_keys):
+            return jsonify({"error": "Incomplete server response", "details": server_response}), 502
+
+        try:
+            decrypted_password = aes_decryption(server_response['password'])
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 500
+
+        return jsonify({
+            "username": server_response['username'],
+            "password": decrypted_password,
+            "expirationDate": server_response['expirationDate']
+        })
+
+    except Exception as e:
+        return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
 
 @app.route('/')
