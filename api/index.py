@@ -36,7 +36,7 @@ def provision_account():
         if not ziv_endpoint:
             return jsonify({"error": "Missing required parameter: zivEndPoint"}), 400
 
-        username = data.get('userName', None)
+        username = data.get('username', None)
 
         headers = {
             "Authorization": "Bearer zi_zi_zi",
